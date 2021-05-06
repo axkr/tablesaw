@@ -17,10 +17,13 @@ package tech.tablesaw.io.csv;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
 import java.net.URL;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import tech.tablesaw.api.ColumnType;
 import tech.tablesaw.io.ReadOptions;
@@ -101,6 +104,17 @@ public class CsvReadOptions extends ReadOptions {
     return new Builder(reader);
   }
 
+  /**
+   * This method may cause tablesaw to buffer the entire InputStream.
+   *
+   * <p>If you have a large amount of data, you can do one of the following: 1. Use the method
+   * taking a File instead of a reader, or 2. Provide the array of column types as an option. If you
+   * provide the columnType array, we skip type detection and can avoid reading the entire file
+   */
+  public static Builder builder(InputStreamReader reader) {
+    return new Builder(reader);
+  }
+
   public ColumnType[] columnTypes() {
     return columnTypes;
   }
@@ -163,6 +177,10 @@ public class CsvReadOptions extends ReadOptions {
 
     protected Builder(File file) {
       super(file);
+    }
+
+    protected Builder(InputStreamReader reader) {
+      super(reader);
     }
 
     protected Builder(Reader reader) {
@@ -237,6 +255,32 @@ public class CsvReadOptions extends ReadOptions {
     @Override
     public Builder header(boolean header) {
       super.header(header);
+      return this;
+    }
+
+    /**
+     * Enable reading of a table with duplicate column names. After the first appearance of a column
+     * name, subsequent appearances will have a number appended.
+     *
+     * @param allow if true, duplicate names will be allowed
+     */
+    @Override
+    public Builder allowDuplicateColumnNames(Boolean allow) {
+      super.allowDuplicateColumnNames(allow);
+      return this;
+    }
+
+    @Override
+    public Builder columnTypesToDetect(List<ColumnType> columnTypesToDetect) {
+      // Types need to be in certain order as more general types like string come last
+      // Otherwise everything will be parsed as a string
+      List<ColumnType> orderedTypes = new ArrayList<>();
+      for (ColumnType t : EXTENDED_TYPES) {
+        if (columnTypesToDetect.contains(t)) {
+          orderedTypes.add(t);
+        }
+      }
+      this.columnTypesToDetect = orderedTypes;
       return this;
     }
 
@@ -318,6 +362,12 @@ public class CsvReadOptions extends ReadOptions {
     @Override
     public Builder ignoreZeroDecimal(boolean ignoreZeroDecimal) {
       super.ignoreZeroDecimal(ignoreZeroDecimal);
+      return this;
+    }
+
+    @Override
+    public Builder skipRowsWithInvalidColumnCount(boolean skipRowsWithInvalidColumnCount) {
+      super.skipRowsWithInvalidColumnCount(skipRowsWithInvalidColumnCount);
       return this;
     }
   }

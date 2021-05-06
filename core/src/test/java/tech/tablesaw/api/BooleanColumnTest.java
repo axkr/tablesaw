@@ -54,10 +54,25 @@ public class BooleanColumnTest {
   }
 
   @Test
+  public void asDoubleColumn() {
+    DoubleColumn doubleColumn = column.asDoubleColumn();
+    assertEquals(column.size(), doubleColumn.size());
+  }
+
+  @Test
   public void inRange() {
     assertFalse(column.all());
     BooleanColumn filtered = column.inRange(0, 2);
     assertEquals(2, filtered.size());
+  }
+
+  @Test
+  public void fixNPESortingWithMissingValues() {
+    assertFalse(column.all());
+    column.appendMissing();
+    column.appendMissing();
+    column.sortAscending(); // Look. No NPE
+    assertEquals(2, column.countMissing());
   }
 
   @Test

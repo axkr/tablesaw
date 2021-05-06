@@ -20,15 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static tech.tablesaw.api.ColumnType.DOUBLE;
-import static tech.tablesaw.api.ColumnType.FLOAT;
-import static tech.tablesaw.api.ColumnType.INTEGER;
-import static tech.tablesaw.api.ColumnType.LOCAL_DATE;
-import static tech.tablesaw.api.ColumnType.LOCAL_DATE_TIME;
-import static tech.tablesaw.api.ColumnType.LOCAL_TIME;
-import static tech.tablesaw.api.ColumnType.SHORT;
-import static tech.tablesaw.api.ColumnType.SKIP;
-import static tech.tablesaw.api.ColumnType.STRING;
+import static tech.tablesaw.api.ColumnType.*;
 
 import com.univocity.parsers.common.TextParsingException;
 import java.io.File;
@@ -64,6 +56,7 @@ import tech.tablesaw.io.AddCellToColumnException;
 public class CsvReaderTest {
 
   private static final String LINE_END = System.lineSeparator();
+  private static final String COMMA = ",";
 
   private final ColumnType[] bus_types = {SHORT, STRING, STRING, FLOAT, FLOAT};
   private final ColumnType[] bus_types_with_SKIP = {SHORT, STRING, SKIP, DOUBLE, DOUBLE};
@@ -110,6 +103,23 @@ public class CsvReaderTest {
   }
 
   @Test
+  void textColumnShutoff() throws IOException {
+
+    Table table = Table.read().csv(CsvReadOptions.builder("../data/cities-states-zipcode.csv"));
+    ColumnType[] types = {INTEGER, STRING, DOUBLE, BOOLEAN};
+    List<ColumnType> typesToDetect = asList(types);
+    Table table2 =
+        Table.read()
+            .csv(
+                CsvReadOptions.builder("../data/cities-states-zipcode.csv")
+                    .columnTypesToDetect(typesToDetect)
+                    .build());
+
+    assertEquals(table.column("WorldRegion").type(), TEXT);
+    assertEquals(table2.column("WorldRegion").type(), STRING);
+  }
+
+  @Test
   public void testWithColumnSKIP() throws IOException {
     // Read the CSV file
     Table table =
@@ -121,6 +131,24 @@ public class CsvReaderTest {
     assertEquals(4, table.columnCount());
     // Look at the column names
     assertEquals("[stop_id, stop_name, stop_lat, stop_lon]", table.columnNames().toString());
+  }
+
+  @Test
+  void allowDuplicateColumnNames() throws IOException {
+    final Reader reader1 =
+        new StringReader(
+            "Col1" + COMMA + "Col2" + LINE_END + "\"first\"" + COMMA + "second" + LINE_END);
+    Table noDupes = Table.read().csv(reader1);
+    assertEquals("Col1", noDupes.columnNames().get(0));
+    assertEquals("Col2", noDupes.columnNames().get(1));
+
+    final Reader reader2 =
+        new StringReader(
+            "Col1" + COMMA + "Col1" + LINE_END + "\"first\"" + COMMA + "second" + LINE_END);
+    Table dupes =
+        Table.read().csv(CsvReadOptions.builder(reader2).allowDuplicateColumnNames(true).build());
+    assertEquals("Col1", dupes.columnNames().get(0));
+    assertEquals("Col1-2", dupes.columnNames().get(1));
   }
 
   @Test
@@ -461,6 +489,22 @@ public class CsvReaderTest {
     assertEquals(1, t.numberColumn(2).countMissing());
   }
 
+  /** Tests the auto-detection of missing values, using multiple missing value indicators */
+  @Test
+  public void testWithMissingValue2() throws IOException {
+
+    CsvReadOptions options =
+        CsvReadOptions.builder("../data/missing_values2.csv")
+            .dateFormat(DateTimeFormatter.ofPattern("yyyy.MM.dd"))
+            .header(true)
+            .build();
+
+    Table t = Table.read().csv(options);
+    assertEquals(1, t.stringColumn(0).countMissing());
+    assertEquals(1, t.numberColumn(1).countMissing());
+    assertEquals(1, t.numberColumn(2).countMissing());
+  }
+
   @Test
   public void testWindowsAndLinuxLineEndings() throws IOException {
     Reader reader =
@@ -781,5 +825,30 @@ public class CsvReaderTest {
     // test CSV reads quote back again
     Table out = Table.read().csv(new StringReader(string));
     assertEquals(table.get(0, 0), out.get(0, 0));
+  }
+
+  @Test
+  public void testSkipRowsWithInvalidColumnCount() throws IOException {
+    Table table =
+        Table.read()
+            .csv(
+                CsvReadOptions.builder("../data/short_row.csv")
+                    .skipRowsWithInvalidColumnCount(true)
+                    .build());
+    assertEquals(2, table.rowCount());
+  }
+
+  @Test
+  public void skipRowsWithInvalidColumnCountWithoutHeader() throws IOException {
+    assertThrows(
+        AddCellToColumnException.class,
+        () -> {
+          Table.read()
+              .csv(
+                  CsvReadOptions.builder("../data/short_row.csv")
+                      .header(false)
+                      .skipRowsWithInvalidColumnCount(true)
+                      .build());
+        });
   }
 }

@@ -14,19 +14,15 @@
 
 package tech.tablesaw.api;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 import static tech.tablesaw.aggregate.AggregateFunctions.mean;
 import static tech.tablesaw.aggregate.AggregateFunctions.stdDev;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -49,8 +45,8 @@ public class TableTest {
   private static final Random RANDOM = new Random();
 
   private Table table;
-  private DoubleColumn f1 = DoubleColumn.create("f1");
-  private DoubleColumn numberColumn = DoubleColumn.create("d1");
+  private final DoubleColumn f1 = DoubleColumn.create("f1");
+  private final DoubleColumn numberColumn = DoubleColumn.create("d1");
 
   @BeforeEach
   void setUp() {
@@ -73,6 +69,22 @@ public class TableTest {
   void testColumn() {
     Column<?> column1 = table.column(0);
     assertNotNull(column1);
+  }
+
+  @Test
+  void reorderColumns() throws Exception {
+    Table t = Table.read().csv("../data/bush.csv");
+    List<String> names = t.columnNames();
+    assertEquals(names.get(0), "date");
+    assertEquals(names.get(1), "approval");
+    assertEquals(names.get(2), "who");
+
+    Table reordered = t.reorderColumns("who", "approval", "date");
+    List<String> reorderedNames = reordered.columnNames();
+
+    assertEquals(reorderedNames.get(0), "who");
+    assertEquals(reorderedNames.get(1), "approval");
+    assertEquals(reorderedNames.get(2), "date");
   }
 
   @Test
@@ -333,6 +345,111 @@ public class TableTest {
     RowConsumer rowConsumer = new RowConsumer();
     t.steppingStream(3).forEach(rowConsumer);
     assertEquals(sum1, rowConsumer.getSum());
+  }
+
+  @Test
+  void melt() throws Exception {
+    boolean dropMissing = false;
+    String df =
+        "subject, time, age, weight, height"
+            + LINE_END
+            + "John Smith,    1,  33,     90,   1.87"
+            + LINE_END
+            + "Mary Smith,    1,  NA,     NA,   1.54";
+    StringReader reader = new StringReader(df);
+    Table t = Table.read().csv(reader);
+    t.columnNames();
+    List<String> ids = ImmutableList.of("subject", "time");
+    List<NumericColumn<?>> measures = t.numericColumns("age", "weight", "height");
+
+    Table melted = t.melt(ids, measures, dropMissing);
+    assertEquals(
+        "                                              "
+            + LINE_END
+            + "  subject    |  time  |  variable  |  value  |"
+            + LINE_END
+            + "----------------------------------------------"
+            + LINE_END
+            + " John Smith  |     1  |       age  |     33  |"
+            + LINE_END
+            + " John Smith  |     1  |    weight  |     90  |"
+            + LINE_END
+            + " John Smith  |     1  |    height  |   1.87  |"
+            + LINE_END
+            + " Mary Smith  |     1  |       age  |         |"
+            + LINE_END
+            + " Mary Smith  |     1  |    weight  |         |"
+            + LINE_END
+            + " Mary Smith  |     1  |    height  |   1.54  |",
+        melted.toString());
+  }
+
+  @Test
+  void meltAndDropMissing() throws Exception {
+    boolean dropMissing = true;
+    String df =
+        "subject, time, age, weight, height"
+            + LINE_END
+            + "John Smith,    1,  33,     90,   1.87"
+            + LINE_END
+            + "Mary Smith,    1,  NA,     NA,   1.54";
+    StringReader reader = new StringReader(df);
+    Table t = Table.read().csv(reader);
+    t.columnNames();
+    List<String> ids = ImmutableList.of("subject", "time");
+    List<NumericColumn<?>> measures = t.numericColumns("age", "weight", "height");
+
+    Table melted = t.melt(ids, measures, dropMissing);
+    melted.write().csv("../data/molten_smiths_drop_missing.csv");
+    assertEquals(
+        "                                              "
+            + LINE_END
+            + "  subject    |  time  |  variable  |  value  |"
+            + LINE_END
+            + "----------------------------------------------"
+            + LINE_END
+            + " John Smith  |     1  |       age  |     33  |"
+            + LINE_END
+            + " John Smith  |     1  |    weight  |     90  |"
+            + LINE_END
+            + " John Smith  |     1  |    height  |   1.87  |"
+            + LINE_END
+            + " Mary Smith  |     1  |    height  |   1.54  |",
+        melted.toString());
+  }
+
+  @Test
+  void cast() throws IOException {
+    Table molten = Table.read().csv("../data/molten_smiths.csv");
+    Table cast = molten.cast();
+    StringWriter writer = new StringWriter();
+    cast.write().csv(writer);
+    String writeString = writer.toString();
+    assertEquals(
+        "subject,time,weight,age,height"
+            + LINE_END
+            + "John Smith,1,90.0,33.0,1.87"
+            + LINE_END
+            + "Mary Smith,1,,,1.54"
+            + LINE_END,
+        writeString);
+  }
+
+  @Test
+  void castWithDropMissing() throws IOException {
+    Table molten = Table.read().csv("../data/molten_smiths_drop_missing.csv");
+    Table cast = molten.cast();
+    StringWriter writer = new StringWriter();
+    cast.write().csv(writer);
+    String writeString = writer.toString();
+    assertEquals(
+        "subject,time,weight,age,height"
+            + LINE_END
+            + "John Smith,1,90.0,33.0,1.87"
+            + LINE_END
+            + "Mary Smith,1,,,1.54"
+            + LINE_END,
+        writeString);
   }
 
   private static class RowConsumer implements Consumer<Row[]> {
@@ -642,6 +759,16 @@ public class TableTest {
       result.set(r, sum);
     }
     return result;
+  }
+
+  @Test
+  void ambiguousMethodCallError() {
+    StringColumn s1 = StringColumn.create("1", "1", "2", "3");
+    StringColumn s2 = StringColumn.create("2", "2", "2", "2");
+    StringColumn s3 = StringColumn.create("3", "3", "2", "1");
+    IntColumn s4 = IntColumn.create("4", 1, 2, 3);
+    Table t = Table.create("t", s3, s2, s1, s4);
+    assertDoesNotThrow(() -> t.where(t.intColumn("4").isIn((int) 1, (int) 2)));
   }
 
   @Test

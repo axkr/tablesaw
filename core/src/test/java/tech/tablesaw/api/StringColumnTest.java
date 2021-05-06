@@ -14,16 +14,24 @@
 
 package tech.tablesaw.api;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static tech.tablesaw.columns.strings.StringPredicates.isEqualToIgnoringCase;
 
+import com.google.common.collect.Lists;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tech.tablesaw.TestDataUtil;
 import tech.tablesaw.columns.strings.StringColumnFormatter;
+import tech.tablesaw.columns.strings.StringParser;
 import tech.tablesaw.selection.Selection;
 
 class StringColumnTest {
@@ -59,6 +67,21 @@ class StringColumnTest {
   }
 
   @Test
+  void appendAsterisk() {
+    final StringColumn sc = StringColumn.create("sc");
+    sc.append("*");
+    assertEquals(0, sc.countMissing());
+    StringParser parser = new StringParser(ColumnType.TEXT);
+    parser.setMissingValueStrings(new ArrayList<>());
+    sc.appendCell("*", parser);
+    assertEquals(0, sc.countMissing());
+    StringParser parser2 = new StringParser(ColumnType.TEXT);
+    parser2.setMissingValueStrings(Lists.newArrayList("45"));
+    sc.appendCell("45", parser2);
+    assertEquals(1, sc.countMissing());
+  }
+
+  @Test
   void testForNulls() {
     String[] array1 = {"1", "2", "3", "4", null};
     Table table1 = Table.create("table1", StringColumn.create("id", array1));
@@ -67,6 +90,15 @@ class StringColumnTest {
     String[] array2 = {"1", "2", null, "", "5"};
     Table table2 = Table.create("table2", StringColumn.create("id", array2));
     assertEquals("", table2.stringColumn("id").get(3));
+  }
+
+  /** Test that asSet returns a different set each time. */
+  @Test
+  void asSet() {
+    Set<String> set1 = column.asSet();
+    Set<String> set2 = column.asSet();
+    set1.remove("Value 2");
+    assertNotEquals(set1.size(), set2.size());
   }
 
   @Test

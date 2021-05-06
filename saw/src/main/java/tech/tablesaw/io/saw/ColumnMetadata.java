@@ -14,65 +14,44 @@
 
 package tech.tablesaw.io.saw;
 
-import static tech.tablesaw.io.saw.SawUtils.BOOLEAN;
-import static tech.tablesaw.io.saw.SawUtils.DOUBLE;
-import static tech.tablesaw.io.saw.SawUtils.FLOAT;
-import static tech.tablesaw.io.saw.SawUtils.INSTANT;
-import static tech.tablesaw.io.saw.SawUtils.INTEGER;
-import static tech.tablesaw.io.saw.SawUtils.LOCAL_DATE;
-import static tech.tablesaw.io.saw.SawUtils.LOCAL_DATE_TIME;
-import static tech.tablesaw.io.saw.SawUtils.LOCAL_TIME;
-import static tech.tablesaw.io.saw.SawUtils.LONG;
-import static tech.tablesaw.io.saw.SawUtils.SHORT;
-import static tech.tablesaw.io.saw.SawUtils.STRING;
-import static tech.tablesaw.io.saw.SawUtils.TEXT;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.Beta;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.UUID;
-import tech.tablesaw.api.BooleanColumn;
-import tech.tablesaw.api.DateColumn;
-import tech.tablesaw.api.DateTimeColumn;
-import tech.tablesaw.api.DoubleColumn;
-import tech.tablesaw.api.FloatColumn;
-import tech.tablesaw.api.IntColumn;
-import tech.tablesaw.api.LongColumn;
-import tech.tablesaw.api.ShortColumn;
+import com.google.common.base.Objects;
 import tech.tablesaw.api.StringColumn;
-import tech.tablesaw.api.TextColumn;
-import tech.tablesaw.api.TimeColumn;
 import tech.tablesaw.columns.Column;
 import tech.tablesaw.columns.strings.ByteDictionaryMap;
+import tech.tablesaw.columns.strings.DictionaryMap;
 import tech.tablesaw.columns.strings.IntDictionaryMap;
-import tech.tablesaw.columns.strings.LookupTableWrapper;
 import tech.tablesaw.columns.strings.ShortDictionaryMap;
 
 /** Data about a specific column used in it's persistence */
 @Beta
 public class ColumnMetadata {
 
-  private static final ObjectMapper objectMapper = new ObjectMapper();
-
   private String id;
   private String name;
   private String type;
+
+  // number of unique values in column - not all columns will provide this as it can be expensive
+  private int cardinality;
+
+  // these attributes are specific to string columns
   private String stringColumnKeySize;
+  private int nextStringKey;
 
   ColumnMetadata(Column<?> column) {
-    this.id = UUID.randomUUID().toString();
+    this.id = SawUtils.makeName(column.name());
     this.name = column.name();
     this.type = column.type().name();
     if (column instanceof StringColumn) {
       StringColumn stringColumn = (StringColumn) column;
-      LookupTableWrapper lookupTable = stringColumn.getLookupTable();
-      if (lookupTable.dictionaryClass().equals(IntDictionaryMap.class)) {
+      cardinality = stringColumn.countUnique();
+      DictionaryMap lookupTable = stringColumn.getDictionary();
+      nextStringKey = lookupTable.nextKeyWithoutIncrementing();
+      if (lookupTable.getClass().equals(IntDictionaryMap.class)) {
         stringColumnKeySize = Integer.class.getSimpleName();
-      } else if (lookupTable.dictionaryClass().equals(ByteDictionaryMap.class)) {
+      } else if (lookupTable.getClass().equals(ByteDictionaryMap.class)) {
         stringColumnKeySize = Byte.class.getSimpleName();
-      } else if (lookupTable.dictionaryClass().equals(ShortDictionaryMap.class)) {
+      } else if (lookupTable.getClass().equals(ShortDictionaryMap.class)) {
         stringColumnKeySize = Short.class.getSimpleName();
       } else {
         stringColumnKeySize = "";
@@ -82,23 +61,13 @@ public class ColumnMetadata {
     }
   }
 
+  /**
+   * Constructs an instance of ColumnMetaData
+   *
+   * <p>NB: This constructor is used by Jackson JSON parsing code so it must be retained even though
+   * it isn't explicitly called
+   */
   protected ColumnMetadata() {}
-
-  public static ColumnMetadata fromJson(String jsonString) {
-    try {
-      return objectMapper.readValue(jsonString, ColumnMetadata.class);
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
-  }
-
-  public String toJson() {
-    try {
-      return objectMapper.writeValueAsString(this);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException(e);
-    }
-  }
 
   @Override
   public String toString() {
@@ -130,35 +99,27 @@ public class ColumnMetadata {
     return stringColumnKeySize;
   }
 
-  public Column<?> createColumn() {
-    final String typeString = getType();
-    switch (typeString) {
-      case FLOAT:
-        return FloatColumn.create(name);
-      case DOUBLE:
-        return DoubleColumn.create(name);
-      case INTEGER:
-        return IntColumn.create(name);
-      case BOOLEAN:
-        return BooleanColumn.create(name);
-      case LOCAL_DATE:
-        return DateColumn.create(name);
-      case LOCAL_TIME:
-        return TimeColumn.create(name);
-      case LOCAL_DATE_TIME:
-        return DateTimeColumn.create(name);
-      case INSTANT:
-        return DateTimeColumn.create(name);
-      case STRING:
-        return StringColumn.create(name);
-      case TEXT:
-        return TextColumn.create(name);
-      case SHORT:
-        return ShortColumn.create(name);
-      case LONG:
-        return LongColumn.create(name);
-      default:
-        throw new IllegalStateException("Unhandled column type writing columns: " + typeString);
-    }
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    ColumnMetadata that = (ColumnMetadata) o;
+    return Objects.equal(getId(), that.getId())
+        && Objects.equal(getName(), that.getName())
+        && Objects.equal(getType(), that.getType())
+        && Objects.equal(getStringColumnKeySize(), that.getStringColumnKeySize());
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(getId(), getName(), getType(), getStringColumnKeySize());
+  }
+
+  public int getNextStringKey() {
+    return nextStringKey;
+  }
+
+  public int getCardinality() {
+    return cardinality;
   }
 }

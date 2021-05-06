@@ -31,6 +31,7 @@ import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URL;
 import java.time.format.DateTimeFormatter;
@@ -41,10 +42,11 @@ import tech.tablesaw.api.ColumnType;
 public class ReadOptions {
 
   public static final boolean DEFAULT_IGNORE_ZERO_DECIMAL = true;
+  public static final boolean DEFAULT_SKIP_ROWS_WITH_INVALID_COLUMN_COUNT = false;
 
   private static final List<ColumnType> DEFAULT_TYPES =
       Lists.newArrayList(
-          LOCAL_DATE_TIME, LOCAL_TIME, LOCAL_DATE, BOOLEAN, INTEGER, LONG, DOUBLE, STRING);
+          LOCAL_DATE_TIME, LOCAL_TIME, LOCAL_DATE, BOOLEAN, INTEGER, LONG, DOUBLE, STRING, TEXT);
 
   /**
    * An extended list of types that are used if minimizeColumnSizes is true. By including extra
@@ -52,7 +54,7 @@ public class ReadOptions {
    * for the programmer if, for example, they will subsequently modify the data in a way that
    * exceeds the range of the type.
    */
-  private static final List<ColumnType> EXTENDED_TYPES =
+  protected static final List<ColumnType> EXTENDED_TYPES =
       Lists.newArrayList(
           LOCAL_DATE_TIME,
           LOCAL_TIME,
@@ -78,6 +80,8 @@ public class ReadOptions {
   protected final boolean minimizeColumnSizes;
   protected final int maxCharsPerColumn;
   protected final boolean ignoreZeroDecimal;
+  protected final boolean allowDuplicateColumnNames;
+  protected final boolean skipRowsWithInvalidColumnCount;
 
   protected final DateTimeFormatter dateFormatter;
   protected final DateTimeFormatter dateTimeFormatter;
@@ -98,10 +102,13 @@ public class ReadOptions {
     header = builder.header;
     maxCharsPerColumn = builder.maxCharsPerColumn;
     ignoreZeroDecimal = builder.ignoreZeroDecimal;
+    skipRowsWithInvalidColumnCount = builder.skipRowsWithInvalidColumnCount;
 
     dateFormatter = builder.dateFormatter;
     timeFormatter = builder.timeFormatter;
     dateTimeFormatter = builder.dateTimeFormatter;
+
+    allowDuplicateColumnNames = builder.allowDuplicateColumnNames;
 
     if (builder.locale == null) {
       locale = Locale.getDefault();
@@ -116,6 +123,10 @@ public class ReadOptions {
 
   public String tableName() {
     return tableName;
+  }
+
+  public boolean allowDuplicateColumnNames() {
+    return allowDuplicateColumnNames;
   }
 
   public List<ColumnType> columnTypesToDetect() {
@@ -144,6 +155,10 @@ public class ReadOptions {
 
   public boolean ignoreZeroDecimal() {
     return ignoreZeroDecimal;
+  }
+
+  public boolean skipRowsWithInvalidColumnCount() {
+    return skipRowsWithInvalidColumnCount;
   }
 
   public DateTimeFormatter dateTimeFormatter() {
@@ -195,6 +210,8 @@ public class ReadOptions {
     protected boolean header = true;
     protected int maxCharsPerColumn = 4096;
     protected boolean ignoreZeroDecimal = DEFAULT_IGNORE_ZERO_DECIMAL;
+    protected boolean skipRowsWithInvalidColumnCount = DEFAULT_SKIP_ROWS_WITH_INVALID_COLUMN_COUNT;
+    private boolean allowDuplicateColumnNames = false;
 
     protected Builder() {
       source = null;
@@ -216,6 +233,10 @@ public class ReadOptions {
 
     protected Builder(InputStream stream) {
       this.source = new Source(stream);
+    }
+
+    protected Builder(InputStreamReader reader) {
+      this.source = new Source(reader);
     }
 
     protected Builder(Reader reader) {
@@ -241,6 +262,11 @@ public class ReadOptions {
 
     public Builder dateFormat(DateTimeFormatter dateFormat) {
       this.dateFormatter = dateFormat;
+      return this;
+    }
+
+    public Builder allowDuplicateColumnNames(Boolean allow) {
+      this.allowDuplicateColumnNames = allow;
       return this;
     }
 
@@ -281,6 +307,12 @@ public class ReadOptions {
     /** Ignore zero value decimals in data values. Defaults to {@code true}. */
     public Builder ignoreZeroDecimal(boolean ignoreZeroDecimal) {
       this.ignoreZeroDecimal = ignoreZeroDecimal;
+      return this;
+    }
+
+    /** Skip the rows with invalid column count in data values. Defaluts to {@code false}. */
+    public Builder skipRowsWithInvalidColumnCount(boolean skipRowsWithInvalidColumnCount) {
+      this.skipRowsWithInvalidColumnCount = skipRowsWithInvalidColumnCount;
       return this;
     }
 

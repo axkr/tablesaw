@@ -28,7 +28,6 @@ import tech.tablesaw.columns.Column;
 import tech.tablesaw.columns.strings.AbstractStringColumn;
 import tech.tablesaw.columns.strings.ByteDictionaryMap;
 import tech.tablesaw.columns.strings.DictionaryMap;
-import tech.tablesaw.columns.strings.LookupTableWrapper;
 import tech.tablesaw.columns.strings.NoKeysAvailableException;
 import tech.tablesaw.columns.strings.StringColumnType;
 import tech.tablesaw.selection.BitmapBackedSelection;
@@ -235,11 +234,11 @@ public class StringColumn extends AbstractStringColumn<StringColumn> {
         if (i + n >= size()) {
           break;
         }
-        copy.appendCell(get(i));
+        copy.append(get(i));
       }
     } else {
       for (int i = -n; i < size(); i++) {
-        copy.appendCell(get(i));
+        copy.append(get(i));
       }
       for (int m = 0; m > n; m--) {
         copy.appendMissing();
@@ -522,7 +521,7 @@ public class StringColumn extends AbstractStringColumn<StringColumn> {
   }
 
   /** For tablesaw internal use only */
-  public LookupTableWrapper getLookupTable() {
-    return new LookupTableWrapper(lookupTable);
+  public DictionaryMap getDictionary() {
+    return lookupTable;
   }
 }

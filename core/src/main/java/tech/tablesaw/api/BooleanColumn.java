@@ -62,9 +62,9 @@ public class BooleanColumn extends AbstractColumn<BooleanColumn, Boolean>
 
   private final IntComparator comparator =
       (r1, r2) -> {
-        boolean f1 = get(r1);
-        boolean f2 = get(r2);
-        return Boolean.compare(f1, f2);
+        byte f1 = getByte(r1);
+        byte f2 = getByte(r2);
+        return Byte.compare(f1, f2);
       };
 
   private BooleanFormatter formatter = new BooleanFormatter("true", "false", "");
@@ -655,7 +655,7 @@ public class BooleanColumn extends AbstractColumn<BooleanColumn, Boolean>
     DoubleColumn numberColumn = DoubleColumn.create(this.name(), size());
     ByteArrayList data = data();
     for (int i = 0; i < size(); i++) {
-      numberColumn.append(data.getByte(i));
+      numberColumn.set(i, data.getByte(i));
     }
     return numberColumn;
   }
